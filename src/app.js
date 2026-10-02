@@ -2,6 +2,7 @@ const express = require('express');
 const authRoutes = require('./routes/auth.routes');
 const supplierRoutes = require('./routes/supplier.routes');
 const shopRoutes = require('./routes/shop.routes');
+const orderRoutes = require('./routes/order.routes');
 
 const app = express();
 
@@ -11,6 +12,7 @@ app.use(express.json());
 app.use('/auth', authRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/shops', shopRoutes);
+app.use('/orders', orderRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
