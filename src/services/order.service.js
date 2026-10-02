@@ -194,6 +194,38 @@ async function createShopOrder(userId, orderRequest) {
   }
 }
 
+async function listShopOrders(userId) {
+  const [shops] = await pool.execute(
+    'SELECT id FROM shops WHERE user_id = ? LIMIT 1',
+    [userId],
+  );
+
+  if (shops.length === 0) {
+    throw createHttpError(404, 'Shop profile not found');
+  }
+
+  const [rows] = await pool.execute(
+    `SELECT orders.id,
+            orders.supplier_id AS supplierId,
+            suppliers.company_name AS supplierName,
+            orders.status,
+            orders.total_amount AS totalAmount,
+            orders.created_at AS createdAt,
+            orders.updated_at AS updatedAt
+     FROM orders
+     INNER JOIN suppliers ON suppliers.id = orders.supplier_id
+     WHERE orders.shop_id = ?
+     ORDER BY orders.created_at DESC`,
+    [shops[0].id],
+  );
+
+  return rows.map((order) => ({
+    ...order,
+    totalAmount: Number(order.totalAmount),
+  }));
+}
+
 module.exports = {
   createShopOrder,
+  listShopOrders,
 };
