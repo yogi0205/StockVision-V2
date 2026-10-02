@@ -278,8 +278,84 @@ async function getShopOrder(userId, orderId) {
   };
 }
 
+async function updateSupplierOrderStatus(userId, orderId, newStatus) {
+  const connection = await pool.getConnection();
+  let transactionStarted = false;
+
+  try {
+    await connection.beginTransaction();
+    transactionStarted = true;
+
+    const [suppliers] = await connection.execute(
+      'SELECT id FROM suppliers WHERE user_id = ? LIMIT 1',
+      [userId],
+    );
+
+    if (suppliers.length === 0) {
+      throw createHttpError(404, 'Supplier profile not found');
+    }
+
+    const [orders] = await connection.execute(
+      `SELECT id, status
+       FROM orders
+       WHERE id = ? AND supplier_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [orderId, suppliers[0].id],
+    );
+
+    if (orders.length === 0) {
+      throw createHttpError(404, 'Order not found');
+    }
+
+    const transitions = {
+      PENDING: ['CONFIRMED', 'CANCELLED'],
+      CONFIRMED: ['PROCESSING', 'CANCELLED'],
+      PROCESSING: ['COMPLETED'],
+      COMPLETED: [],
+      CANCELLED: [],
+    };
+    const order = orders[0];
+
+    if (!transitions[order.status]?.includes(newStatus)) {
+      throw createHttpError(
+        409,
+        `Cannot change order status from ${order.status} to ${newStatus}`,
+      );
+    }
+
+    await connection.execute(
+      'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND supplier_id = ?',
+      [newStatus, order.id, suppliers[0].id],
+    );
+
+    await connection.commit();
+    transactionStarted = false;
+
+    return {
+      id: order.id,
+      status: newStatus,
+    };
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          'Order status update failed and the transaction could not be rolled back',
+        );
+      }
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   createShopOrder,
   listShopOrders,
   getShopOrder,
+  updateSupplierOrderStatus,
 };

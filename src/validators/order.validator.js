@@ -13,6 +13,12 @@ const createOrderSchema = Joi.object({
     .required(),
 }).unknown(false).required();
 
+const updateOrderStatusSchema = Joi.object({
+  status: Joi.string()
+    .valid('CONFIRMED', 'PROCESSING', 'COMPLETED', 'CANCELLED')
+    .required(),
+}).unknown(false).required();
+
 function validateCreateOrder(req, res, next) {
   const { error, value } = createOrderSchema.validate(req.body, {
     abortEarly: false,
@@ -33,6 +39,27 @@ function validateCreateOrder(req, res, next) {
   return next();
 }
 
+function validateUpdateOrderStatus(req, res, next) {
+  const { error, value } = updateOrderStatusSchema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: false,
+  });
+
+  if (error) {
+    return res.status(400).json({
+      message: 'Invalid order status data',
+      errors: error.details.map(({ path, message }) => ({
+        field: path.join('.'),
+        message,
+      })),
+    });
+  }
+
+  req.body = value;
+  return next();
+}
+
 module.exports = {
   validateCreateOrder,
+  validateUpdateOrderStatus,
 };

@@ -3,13 +3,24 @@ const {
   createOrder,
   getOrders,
   getOrder,
+  updateOrderStatus,
 } = require('../controllers/order.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { authorizeRoles } = require('../middleware/role.middleware');
-const { validateCreateOrder } = require('../validators/order.validator');
+const {
+  validateCreateOrder,
+  validateUpdateOrderStatus,
+} = require('../validators/order.validator');
 
 const router = express.Router();
 
+router.patch(
+  '/:id/status',
+  authenticateToken,
+  authorizeRoles('SUPPLIER'),
+  validateUpdateOrderStatus,
+  updateOrderStatus,
+);
 router.get(
   '/:id',
   authenticateToken,

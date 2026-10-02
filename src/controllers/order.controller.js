@@ -2,6 +2,7 @@ const {
   createShopOrder,
   listShopOrders,
   getShopOrder,
+  updateSupplierOrderStatus,
 } = require('../services/order.service');
 
 async function createOrder(req, res) {
@@ -31,8 +32,22 @@ async function getOrder(req, res) {
   return res.status(200).json({ order });
 }
 
+async function updateOrderStatus(req, res) {
+  const order = await updateSupplierOrderStatus(
+    req.user.userId,
+    req.params.id,
+    req.body.status,
+  );
+
+  return res.status(200).json({
+    message: 'Order status updated successfully',
+    order,
+  });
+}
+
 module.exports = {
   createOrder,
   getOrders,
   getOrder,
+  updateOrderStatus,
 };
