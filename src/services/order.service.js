@@ -225,7 +225,61 @@ async function listShopOrders(userId) {
   }));
 }
 
+async function getShopOrder(userId, orderId) {
+  const [shops] = await pool.execute(
+    'SELECT id FROM shops WHERE user_id = ? LIMIT 1',
+    [userId],
+  );
+
+  if (shops.length === 0) {
+    throw createHttpError(404, 'Shop profile not found');
+  }
+
+  const [orders] = await pool.execute(
+    `SELECT orders.id,
+            orders.supplier_id AS supplierId,
+            suppliers.company_name AS supplierName,
+            orders.status,
+            orders.total_amount AS totalAmount,
+            orders.created_at AS createdAt,
+            orders.updated_at AS updatedAt
+     FROM orders
+     INNER JOIN suppliers ON suppliers.id = orders.supplier_id
+     WHERE orders.id = ? AND orders.shop_id = ?
+     LIMIT 1`,
+    [orderId, shops[0].id],
+  );
+
+  if (orders.length === 0) {
+    return null;
+  }
+
+  const order = orders[0];
+  const [items] = await pool.execute(
+    `SELECT order_items.product_id AS productId,
+            products.name AS productName,
+            order_items.quantity,
+            order_items.unit_price AS unitPrice,
+            order_items.line_total AS lineTotal
+     FROM order_items
+     INNER JOIN products ON products.id = order_items.product_id
+     WHERE order_items.order_id = ?`,
+    [order.id],
+  );
+
+  return {
+    ...order,
+    totalAmount: Number(order.totalAmount),
+    items: items.map((item) => ({
+      ...item,
+      unitPrice: Number(item.unitPrice),
+      lineTotal: Number(item.lineTotal),
+    })),
+  };
+}
+
 module.exports = {
   createShopOrder,
   listShopOrders,
+  getShopOrder,
 };
