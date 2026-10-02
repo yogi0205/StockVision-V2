@@ -11,7 +11,7 @@ async function startServer() {
       console.log(`Environment: ${nodeEnv}`);
     });
   } catch (error) {
-    console.error('Server startup failed');
+    console.error('Server startup failed:', error.message || error.code || error);
     process.exit(1);
   }
 }
