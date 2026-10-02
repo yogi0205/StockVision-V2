@@ -21,7 +21,17 @@ async function testDatabaseConnection() {
 
     connection.release();
   } catch (error) {
-    console.error('MySQL connection failed:', error.message);
+    console.error('MySQL connection failed:', {
+      message: error.message || 'No error message provided by the MySQL driver',
+      code: error.code,
+      errno: error.errno,
+      syscall: error.syscall,
+      address: error.address,
+      port: error.port,
+    });
+    if (error.stack) {
+      console.error(error.stack);
+    }
     throw error;
   }
 }

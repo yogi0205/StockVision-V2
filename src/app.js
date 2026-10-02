@@ -1,9 +1,12 @@
 const express = require('express');
+const authRoutes = require('./routes/auth.routes');
 
 const app = express();
 
 // Parse JSON request bodies
 app.use(express.json());
+
+app.use('/auth', authRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
