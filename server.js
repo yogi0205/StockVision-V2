@@ -2,6 +2,7 @@ const app = require('./src/app');
 const { port, nodeEnv } = require('./src/config/env');
 const { testDatabaseConnection } = require('./src/config/db');
 const redisClient = require('./src/config/redis');
+const { connectKafkaProducer } = require('./src/services/kafka.service');
 
 async function startServer() {
   try {
@@ -16,6 +17,8 @@ async function startServer() {
       );
       throw error;
     }
+
+    await connectKafkaProducer();
 
     app.listen(port, () => {
       console.log(`StockVision V2 API running on port ${port}`);
