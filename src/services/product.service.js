@@ -1,0 +1,79 @@
+const { pool } = require('../config/db');
+
+function createNotFoundError() {
+  const error = new Error('Supplier profile not found');
+  error.status = 404;
+  return error;
+}
+
+async function createSupplierProduct(userId, product) {
+  const connection = await pool.getConnection();
+  let transactionStarted = false;
+
+  try {
+    await connection.beginTransaction();
+    transactionStarted = true;
+
+    const [suppliers] = await connection.execute(
+      'SELECT id FROM suppliers WHERE user_id = ? LIMIT 1',
+      [userId],
+    );
+
+    if (suppliers.length === 0) {
+      throw createNotFoundError();
+    }
+
+    const supplierId = suppliers[0].id;
+    const [result] = await connection.execute(
+      `INSERT INTO products
+         (supplier_id, name, category, unit, price, stock, version, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, 1, TRUE)`,
+      [
+        supplierId,
+        product.name,
+        product.category || null,
+        product.unit,
+        product.price,
+        product.stock,
+      ],
+    );
+
+    await connection.execute(
+      `INSERT INTO stock_history
+         (product_id, supplier_id, old_stock, new_stock, change_type, event_id)
+       VALUES (?, ?, 0, ?, 'RESTOCK', NULL)`,
+      [result.insertId, supplierId, product.stock],
+    );
+
+    await connection.commit();
+    transactionStarted = false;
+
+    return {
+      id: result.insertId,
+      name: product.name,
+      category: product.category || null,
+      unit: product.unit,
+      price: product.price,
+      stock: product.stock,
+      version: 1,
+    };
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          'Product creation failed and the transaction could not be rolled back',
+        );
+      }
+    }
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+module.exports = {
+  createSupplierProduct,
+};
