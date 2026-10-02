@@ -150,7 +150,29 @@ async function updateSupplierProductStock(userId, productId, newStock) {
   }
 }
 
+async function listSupplierProducts(userId) {
+  const [suppliers] = await pool.execute(
+    'SELECT id FROM suppliers WHERE user_id = ? LIMIT 1',
+    [userId],
+  );
+
+  if (suppliers.length === 0) {
+    throw createNotFoundError();
+  }
+
+  const [products] = await pool.execute(
+    `SELECT id, name, category, unit, price, stock, version, created_at, updated_at
+     FROM products
+     WHERE supplier_id = ? AND is_active = TRUE
+     ORDER BY created_at DESC`,
+    [suppliers[0].id],
+  );
+
+  return products;
+}
+
 module.exports = {
   createSupplierProduct,
   updateSupplierProductStock,
+  listSupplierProducts,
 };

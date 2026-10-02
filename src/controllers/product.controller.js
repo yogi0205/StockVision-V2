@@ -1,6 +1,7 @@
 const {
   createSupplierProduct,
   updateSupplierProductStock,
+  listSupplierProducts,
 } = require('../services/product.service');
 
 async function createProduct(req, res) {
@@ -25,7 +26,14 @@ async function updateProductStock(req, res) {
   });
 }
 
+async function getProducts(req, res) {
+  const products = await listSupplierProducts(req.user.userId);
+
+  return res.status(200).json({ products });
+}
+
 module.exports = {
   createProduct,
   updateProductStock,
+  getProducts,
 };

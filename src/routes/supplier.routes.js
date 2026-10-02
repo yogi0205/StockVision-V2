@@ -2,6 +2,7 @@ const express = require('express');
 const {
   createProduct,
   updateProductStock,
+  getProducts,
 } = require('../controllers/product.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { authorizeRoles } = require('../middleware/role.middleware');
@@ -12,6 +13,12 @@ const {
 
 const router = express.Router();
 
+router.get(
+  '/products',
+  authenticateToken,
+  authorizeRoles('SUPPLIER'),
+  getProducts,
+);
 router.post(
   '/products',
   authenticateToken,
