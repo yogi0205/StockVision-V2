@@ -171,8 +171,36 @@ async function listSupplierProducts(userId) {
   return products;
 }
 
+async function getSupplierProduct(userId, productId) {
+  const [suppliers] = await pool.execute(
+    'SELECT id FROM suppliers WHERE user_id = ? LIMIT 1',
+    [userId],
+  );
+
+  if (suppliers.length === 0) {
+    throw createNotFoundError();
+  }
+
+  const [products] = await pool.execute(
+    `SELECT id, name, category, unit, price, stock, version, created_at, updated_at
+     FROM products
+     WHERE id = ? AND supplier_id = ? AND is_active = TRUE
+     LIMIT 1`,
+    [productId, suppliers[0].id],
+  );
+
+  if (products.length === 0) {
+    const error = new Error('Product not found');
+    error.status = 404;
+    throw error;
+  }
+
+  return products[0];
+}
+
 module.exports = {
   createSupplierProduct,
   updateSupplierProductStock,
   listSupplierProducts,
+  getSupplierProduct,
 };

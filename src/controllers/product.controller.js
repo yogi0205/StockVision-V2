@@ -2,6 +2,7 @@ const {
   createSupplierProduct,
   updateSupplierProductStock,
   listSupplierProducts,
+  getSupplierProduct,
 } = require('../services/product.service');
 
 async function createProduct(req, res) {
@@ -32,8 +33,15 @@ async function getProducts(req, res) {
   return res.status(200).json({ products });
 }
 
+async function getProduct(req, res) {
+  const product = await getSupplierProduct(req.user.userId, req.params.id);
+
+  return res.status(200).json({ product });
+}
+
 module.exports = {
   createProduct,
   updateProductStock,
   getProducts,
+  getProduct,
 };
