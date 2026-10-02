@@ -19,6 +19,11 @@ const registrationSchema = Joi.object({
   location: Joi.string().trim().max(255).allow(''),
 }).unknown(false).required();
 
+const loginSchema = Joi.object({
+  email: Joi.string().trim().email().max(255).required(),
+  password: Joi.string().required(),
+}).unknown(false).required();
+
 function validateRegistration(req, res, next) {
   const { error, value } = registrationSchema.validate(req.body, {
     abortEarly: false,
@@ -40,6 +45,28 @@ function validateRegistration(req, res, next) {
   return next();
 }
 
+function validateLogin(req, res, next) {
+  const { error, value } = loginSchema.validate(req.body, {
+    abortEarly: false,
+    stripUnknown: false,
+  });
+
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid login data',
+      errors: error.details.map(({ path, message }) => ({
+        field: path.join('.'),
+        message,
+      })),
+    });
+  }
+
+  req.body = value;
+  return next();
+}
+
 module.exports = {
   validateRegistration,
+  validateLogin,
 };

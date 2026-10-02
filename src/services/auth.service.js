@@ -1,9 +1,17 @@
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
+const { jwtSecret, jwtExpiresIn } = require('../config/env');
 
 function createConflictError() {
   const error = new Error('Email is already registered');
   error.status = 409;
+  return error;
+}
+
+function createAuthenticationError() {
+  const error = new Error('Invalid email or password');
+  error.status = 401;
   return error;
 }
 
@@ -92,6 +100,72 @@ async function registerUser(registration) {
   }
 }
 
+async function loginUser(credentials) {
+  const email = credentials.email.toLowerCase();
+  const [users] = await pool.execute(
+    `SELECT id, name, email, password_hash, role, is_active
+     FROM users
+     WHERE email = ?
+     LIMIT 1`,
+    [email],
+  );
+
+  const user = users[0];
+  if (!user) {
+    throw createAuthenticationError();
+  }
+
+  if (!user.is_active) {
+    const error = new Error('Account is inactive');
+    error.status = 403;
+    throw error;
+  }
+
+  const passwordMatches = await bcrypt.compare(
+    credentials.password,
+    user.password_hash,
+  );
+  if (!passwordMatches) {
+    throw createAuthenticationError();
+  }
+
+  if (!jwtSecret) {
+    const error = new Error('JWT_SECRET is not configured');
+    error.status = 500;
+    throw error;
+  }
+
+  const token = jwt.sign(
+    { userId: user.id, role: user.role },
+    jwtSecret,
+    { expiresIn: jwtExpiresIn, noTimestamp: true },
+  );
+
+  return {
+    token,
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+  };
+}
+
+async function findUserById(userId) {
+  const [users] = await pool.execute(
+    `SELECT id, name, email, role, is_active
+     FROM users
+     WHERE id = ?
+     LIMIT 1`,
+    [userId],
+  );
+
+  return users[0] || null;
+}
+
 module.exports = {
   registerUser,
+  loginUser,
+  findUserById,
 };
