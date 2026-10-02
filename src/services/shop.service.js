@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const redisClient = require('../config/redis');
 
 async function listSuppliersForShop(userId) {
   const [shops] = await pool.execute(
@@ -53,6 +54,12 @@ async function getSupplierProductsForShop(userId, supplierId) {
     throw error;
   }
 
+  const cacheKey = `supplier:${suppliers[0].id}:products`;
+  const cachedResult = await redisClient.get(cacheKey);
+  if (cachedResult) {
+    return JSON.parse(cachedResult);
+  }
+
   const [products] = await pool.execute(
     `SELECT id, name, category, unit, price, stock, version, created_at, updated_at
      FROM products
@@ -61,10 +68,13 @@ async function getSupplierProductsForShop(userId, supplierId) {
     [suppliers[0].id],
   );
 
-  return {
+  const result = {
     supplier: suppliers[0],
     products,
   };
+  await redisClient.set(cacheKey, JSON.stringify(result), { EX: 60 });
+
+  return result;
 }
 
 module.exports = {

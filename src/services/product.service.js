@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const redisClient = require('../config/redis');
 
 function createNotFoundError() {
   const error = new Error('Supplier profile not found');
@@ -126,6 +127,8 @@ async function updateSupplierProductStock(userId, productId, newStock) {
 
     await connection.commit();
     transactionStarted = false;
+
+    await redisClient.del(`supplier:${supplierId}:products`);
 
     return {
       id: product.id,
