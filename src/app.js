@@ -1,4 +1,6 @@
 const express = require('express');
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./routes/auth.routes');
 const supplierRoutes = require('./routes/supplier.routes');
 const shopRoutes = require('./routes/shop.routes');
@@ -13,6 +15,8 @@ app.use('/auth', authRoutes);
 app.use('/suppliers', supplierRoutes);
 app.use('/shops', shopRoutes);
 app.use('/orders', orderRoutes);
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Health check
 app.get('/health', (req, res) => {

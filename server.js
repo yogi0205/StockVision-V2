@@ -1,9 +1,11 @@
+const http = require('node:http');
 const app = require('./src/app');
 const { port, nodeEnv } = require('./src/config/env');
 const { testDatabaseConnection } = require('./src/config/db');
 const redisClient = require('./src/config/redis');
 const { connectKafkaProducer } = require('./src/services/kafka.service');
 const { connectKafkaConsumer } = require('./src/services/kafka.consumer.service');
+const { initializeWebSocketServer } = require('./src/services/websocket.service');
 
 async function startServer() {
   try {
@@ -22,7 +24,10 @@ async function startServer() {
     await connectKafkaProducer();
     await connectKafkaConsumer();
 
-    app.listen(port, () => {
+    const server = http.createServer(app);
+    initializeWebSocketServer(server);
+
+    server.listen(port, () => {
       console.log(`StockVision V2 API running on port ${port}`);
       console.log(`Environment: ${nodeEnv}`);
     });

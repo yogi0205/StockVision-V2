@@ -21,6 +21,8 @@
     "kafkajs": "^2.2.4",
     "mysql2": "^3.24.5",
     "redis": "^6.3.0",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1",
     "ws": "^8.22.0"
   },
   "devDependencies": {
