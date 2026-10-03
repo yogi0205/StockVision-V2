@@ -1,6 +1,7 @@
 const { WebSocket, WebSocketServer } = require('ws');
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/env');
+const { pool } = require('../config/db');
 
 const supplierSubscriptions = new Map();
 
@@ -52,7 +53,7 @@ function initializeWebSocketServer(server) {
       }),
     );
 
-    socket.on('message', (message) => {
+    socket.on('message', async (message) => {
       let clientMessage;
       try {
         clientMessage = JSON.parse(message.toString());
@@ -117,6 +118,26 @@ function initializeWebSocketServer(server) {
 
       if (!Number.isSafeInteger(clientMessage.supplierId) || clientMessage.supplierId <= 0) {
         sendSubscriptionError(socket, 'Invalid supplierId');
+        return;
+      }
+
+      let suppliers;
+      try {
+        [suppliers] = await pool.execute(
+          `SELECT suppliers.id
+           FROM suppliers
+           INNER JOIN users ON users.id = suppliers.user_id
+           WHERE suppliers.id = ? AND users.is_active = 1
+           LIMIT 1`,
+          [clientMessage.supplierId],
+        );
+      } catch (error) {
+        console.error('Failed to verify WebSocket supplier subscription:', error);
+        return;
+      }
+
+      if (suppliers.length === 0) {
+        sendSubscriptionError(socket, 'Supplier not found or inactive');
         return;
       }
 
