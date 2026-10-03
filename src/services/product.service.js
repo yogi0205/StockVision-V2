@@ -1,7 +1,10 @@
 const { randomUUID } = require('node:crypto');
 const { pool } = require('../config/db');
 const redisClient = require('../config/redis');
-const { publishStockUpdatedEvent } = require('./kafka.service');
+const {
+  publishStockUpdatedEvent,
+  publishStockDepletedEvent,
+} = require('./kafka.service');
 
 function createNotFoundError() {
   const error = new Error('Supplier profile not found');
@@ -140,6 +143,16 @@ async function updateSupplierProductStock(userId, productId, newStock) {
       newStock,
     };
     await publishStockUpdatedEvent(event);
+
+    if (newStock === 0) {
+      await publishStockDepletedEvent({
+        eventId: randomUUID(),
+        productId: product.id,
+        supplierId,
+        oldStock: product.stock,
+        newStock,
+      });
+    }
 
     return {
       id: product.id,

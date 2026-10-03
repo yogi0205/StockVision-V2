@@ -1,4 +1,9 @@
+const { randomUUID } = require('node:crypto');
 const { pool } = require('../config/db');
+const {
+  publishOrderCreatedEvent,
+  publishOrderStatusUpdatedEvent,
+} = require('./kafka.service');
 
 const MAX_DECIMAL_CENTS = 999999999999n;
 
@@ -165,6 +170,15 @@ async function createShopOrder(userId, orderRequest) {
     await connection.commit();
     transactionStarted = false;
 
+    await publishOrderCreatedEvent({
+      eventId: randomUUID(),
+      orderId: orderResult.insertId,
+      shopId,
+      supplierId,
+      totalAmount: Number(centsToDecimal(totalCents)),
+      status: 'PENDING',
+    });
+
     return {
       id: orderResult.insertId,
       supplierId,
@@ -295,13 +309,14 @@ async function updateSupplierOrderStatus(userId, orderId, newStatus) {
       throw createHttpError(404, 'Supplier profile not found');
     }
 
+    const supplierId = suppliers[0].id;
     const [orders] = await connection.execute(
       `SELECT id, status
        FROM orders
        WHERE id = ? AND supplier_id = ?
        LIMIT 1
        FOR UPDATE`,
-      [orderId, suppliers[0].id],
+      [orderId, supplierId],
     );
 
     if (orders.length === 0) {
@@ -326,11 +341,19 @@ async function updateSupplierOrderStatus(userId, orderId, newStatus) {
 
     await connection.execute(
       'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND supplier_id = ?',
-      [newStatus, order.id, suppliers[0].id],
+      [newStatus, order.id, supplierId],
     );
 
     await connection.commit();
     transactionStarted = false;
+
+    await publishOrderStatusUpdatedEvent({
+      eventId: randomUUID(),
+      orderId: order.id,
+      supplierId,
+      oldStatus: order.status,
+      newStatus,
+    });
 
     return {
       id: order.id,
