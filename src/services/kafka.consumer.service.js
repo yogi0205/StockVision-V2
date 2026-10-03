@@ -7,13 +7,18 @@ const consumer = kafka.consumer({
 async function connectKafkaConsumer() {
   await consumer.connect();
   await consumer.subscribe({
-    topic: 'inventory.stock.updated',
+    topics: [
+      'inventory.stock.updated',
+      'inventory.stock.depleted',
+      'order.created',
+      'order.status.updated',
+    ],
     fromBeginning: false,
   });
   await consumer.run({
-    eachMessage: async ({ message }) => {
+    eachMessage: async ({ topic, message }) => {
       const event = JSON.parse(message.value.toString());
-      console.log('Stock updated event received:', event);
+      console.log('Kafka event received:', { topic, event });
     },
   });
 }
