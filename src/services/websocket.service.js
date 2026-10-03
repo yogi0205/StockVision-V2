@@ -104,7 +104,10 @@ function initializeWebSocketServer(server) {
         return;
       }
 
-      if (clientMessage?.type !== 'subscribe.supplier') {
+      if (
+        clientMessage?.type !== 'subscribe.supplier'
+        && clientMessage?.type !== 'unsubscribe.supplier'
+      ) {
         return;
       }
 
@@ -118,6 +121,22 @@ function initializeWebSocketServer(server) {
 
       if (!Number.isSafeInteger(clientMessage.supplierId) || clientMessage.supplierId <= 0) {
         sendSubscriptionError(socket, 'Invalid supplierId');
+        return;
+      }
+
+      if (clientMessage.type === 'unsubscribe.supplier') {
+        const subscribers = supplierSubscriptions.get(clientMessage.supplierId);
+        if (subscribers) {
+          subscribers.delete(socket);
+          if (subscribers.size === 0) {
+            supplierSubscriptions.delete(clientMessage.supplierId);
+          }
+        }
+
+        sendJson(socket, {
+          type: 'unsubscription.success',
+          supplierId: clientMessage.supplierId,
+        });
         return;
       }
 
