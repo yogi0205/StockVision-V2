@@ -115,8 +115,29 @@ describe('WebSocket inventory subscriptions', () => {
   afterAll(async () => {
     if (client && client.readyState !== WebSocket.CLOSED) {
       await new Promise((resolve) => {
-        client.once('close', resolve);
-        client.close();
+        let timeout;
+        const finish = () => {
+          clearTimeout(timeout);
+          client.off('close', finish);
+          client.off('error', finish);
+          resolve();
+        };
+
+        client.once('close', finish);
+        client.once('error', finish);
+        timeout = setTimeout(finish, 4000);
+
+        if (
+          client.readyState === WebSocket.OPEN
+          || client.readyState === WebSocket.CONNECTING
+        ) {
+          try {
+            client.close();
+          } catch (error) {
+            console.error('WebSocket client close failed:', error.message);
+            finish();
+          }
+        }
       });
     }
 
@@ -132,7 +153,7 @@ describe('WebSocket inventory subscriptions', () => {
     if (server && server.listening) {
       await new Promise((resolve) => server.close(resolve));
     }
-  });
+  }, 30000);
 
   test(
     'authenticates a shop, subscribes to a supplier, and receives stock updates',

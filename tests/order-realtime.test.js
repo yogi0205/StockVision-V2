@@ -11,7 +11,6 @@ const {
 } = require('../src/services/websocket.service');
 
 const EVENT_TIMEOUT_MS = 15000;
-const WEBSOCKET_PORT = 5000;
 
 function waitForMessage(socket, expectedType, timeoutMs = EVENT_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
@@ -80,10 +79,10 @@ describe('Order-created WebSocket event', () => {
     webSocketServer = initializeWebSocketServer(server);
     await new Promise((resolve, reject) => {
       server.once('error', reject);
-      server.listen(WEBSOCKET_PORT, resolve);
+      server.listen(0, resolve);
     });
 
-    webSocketUrl = 'ws://localhost:5000/ws/inventory';
+    webSocketUrl = `ws://localhost:${server.address().port}/ws/inventory`;
     consumer = kafka.consumer({
       groupId: `stockvision-order-realtime-test-${randomUUID()}`,
     });

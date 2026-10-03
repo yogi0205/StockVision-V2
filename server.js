@@ -1,6 +1,6 @@
 const http = require('node:http');
-const app = require('./src/app');
 const { port, nodeEnv } = require('./src/config/env');
+const app = require('./src/app');
 const { testDatabaseConnection } = require('./src/config/db');
 const redisClient = require('./src/config/redis');
 const { connectKafkaProducer } = require('./src/services/kafka.service');
