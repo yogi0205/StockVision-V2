@@ -9,7 +9,7 @@ const orderRoutes = require('./routes/order.routes');
 const app = express();
 
 // Parse JSON request bodies
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 app.use('/auth', authRoutes);
 app.use('/suppliers', supplierRoutes);
@@ -38,9 +38,21 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error(err);
 
-  res.status(err.status || 500).json({
+  // Malformed JSON request body
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON request body',
+    });
+  }
+
+  const status = Number.isInteger(err.status) ? err.status : 500;
+
+  return res.status(status).json({
     success: false,
-    message: err.message || 'Internal server error',
+    message: status >= 500
+      ? 'Internal server error'
+      : err.message || 'Request failed',
   });
 });
 
