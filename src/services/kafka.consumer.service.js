@@ -36,6 +36,14 @@ async function connectKafkaConsumer() {
           type: topic,
           data: event,
         });
+      } else if (
+        (topic === 'order.created' || topic === 'order.status.updated')
+        && event.supplierId
+      ) {
+        broadcastToSupplier(event.supplierId, {
+          type: topic,
+          data: event,
+        });
       }
     },
   });
