@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import { EmptyState, Icon, PageHeading, Spinner } from '../components/Ui'
+import { Alert, EmptyState, Icon, PageHeading, Spinner } from '../components/Ui'
 
 const LOW_STOCK_LIMIT = 5
 
@@ -8,6 +8,9 @@ export default function DashboardPage({ token, user, onNavigate }) {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [ordersError, setOrdersError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -23,6 +26,17 @@ export default function DashboardPage({ token, user, onNavigate }) {
     return () => { active = false }
   }, [token])
 
+  useEffect(() => {
+    let active = true
+    api.supplierOrders(token)
+      .then(({ orders: supplierOrders }) => {
+        if (active) setOrders(supplierOrders)
+      })
+      .catch((requestError) => { if (active) setOrdersError(requestError.message) })
+      .finally(() => { if (active) setOrdersLoading(false) })
+    return () => { active = false }
+  }, [token])
+
   const lowStock = products.filter((product) => Number(product.stock) <= LOW_STOCK_LIMIT).length
   const companyName = 'Company name unavailable'
 
@@ -34,11 +48,12 @@ export default function DashboardPage({ token, user, onNavigate }) {
         <section className="stats-grid" aria-label="Supplier activity">
           <article className="stat-card"><span className="stat-icon stat-violet"><Icon name="package" /></span><span className="stat-label">Active products</span><strong>{products.length}</strong><small>Products returned by the active catalog endpoint</small></article>
           <article className="stat-card"><span className="stat-icon stat-amber"><Icon name="warning" /></span><span className="stat-label">Low stock</span><strong>{lowStock}</strong><small>At or below {LOW_STOCK_LIMIT} units</small></article>
-          <article className="stat-card unavailable-stat"><span className="stat-icon stat-blue"><Icon name="orders" /></span><span className="stat-label">Orders</span><strong>Unavailable</strong><small>The current API has no supplier order-list endpoint</small></article>
+          <article className="stat-card"><span className="stat-icon stat-blue"><Icon name="orders" /></span><span className="stat-label">Incoming orders</span><strong>{ordersLoading ? '…' : orders.length}</strong><small>Orders containing your products</small></article>
         </section>
+        {ordersError && <Alert>{ordersError}</Alert>}
         <section className="quick-grid">
           <button className="quick-card" onClick={() => onNavigate('/products')}><span className="quick-icon"><Icon name="package" /></span><span><strong>Products & stock</strong><small>View catalog and update inventory</small></span><Icon name="arrow" size={17} /></button>
-          <button className="quick-card" onClick={() => onNavigate('/orders')}><span className="quick-icon quick-icon-blue"><Icon name="orders" /></span><span><strong>Order management</strong><small>Update status when you have an order ID</small></span><Icon name="arrow" size={17} /></button>
+          <button className="quick-card" onClick={() => onNavigate('/orders')}><span className="quick-icon quick-icon-blue"><Icon name="orders" /></span><span><strong>Order management</strong><small>Review incoming orders and update status</small></span><Icon name="arrow" size={17} /></button>
         </section>
         <section className="content-card">
           <div className="card-heading"><div><h2>Stock to review</h2><p>Products with 5 units or fewer</p></div><button className="text-button" onClick={() => onNavigate('/products')}>All products <Icon name="arrow" size={16} /></button></div>

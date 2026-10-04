@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Alert, Icon } from '../components/Ui'
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, registrationMessage }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -33,6 +33,7 @@ export default function LoginPage({ onLogin }) {
           <p>Sign in to browse suppliers, manage orders, and keep your shelves stocked.</p>
         </div>
         <form className="login-form" onSubmit={submit}>
+          {registrationMessage && <Alert kind="success">{registrationMessage}</Alert>}
           <Alert>{error}</Alert>
           <label htmlFor="email">Email address</label>
           <input id="email" type="email" autoComplete="username" placeholder="you@business.com"
@@ -45,6 +46,7 @@ export default function LoginPage({ onLogin }) {
           </button>
         </form>
         <p className="login-footnote">Secure access for registered StockVision shop accounts.</p>
+        <p className="login-footnote">New to StockVision? <a href="#/register">Create a shop account</a></p>
       </section>
       <aside className="login-art">
         <div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" />

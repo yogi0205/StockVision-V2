@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage'
 import OrdersPage from './pages/OrdersPage'
 import ProductsPage from './pages/ProductsPage'
 import ProfilePage from './pages/ProfilePage'
+import RegisterPage from './pages/RegisterPage'
 import './App.css'
 
 function routeFromHash() {
@@ -24,6 +25,7 @@ function SupplierApp() {
   const { token, user, loading, login, logout } = useAuth()
   const route = useSyncExternalStore(subscribeToRoute, routeFromHash, () => '/dashboard')
   const [toast, setToast] = useState(null)
+  const [registrationMessage, setRegistrationMessage] = useState('')
   const toastTimer = useRef(null)
 
   const navigate = useCallback((nextRoute) => {
@@ -39,8 +41,8 @@ function SupplierApp() {
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   useEffect(() => {
-    if (!loading && !token && route !== '/login') navigate('/login')
-    if (!loading && token && route === '/login') navigate('/dashboard')
+    if (!loading && !token && route !== '/login' && route !== '/register') navigate('/login')
+    if (!loading && token && (route === '/login' || route === '/register')) navigate('/dashboard')
   }, [loading, token, route, navigate])
 
   const dismissToast = useCallback(() => setToast(null), [])
@@ -56,7 +58,13 @@ function SupplierApp() {
   }, [activeRoute, token, user, navigate, showMessage])
 
   if (loading) return <div className="auth-loading"><Spinner label="Verifying your session…" /></div>
-  if (!token) return <LoginPage onLogin={login} />
+  if (!token && route === '/register') {
+    return <RegisterPage onRegistered={() => {
+      setRegistrationMessage('Registration successful. You can now sign in.')
+      navigate('/login')
+    }} />
+  }
+  if (!token) return <LoginPage onLogin={login} registrationMessage={registrationMessage} />
 
   return (
     <div className="app-shell">

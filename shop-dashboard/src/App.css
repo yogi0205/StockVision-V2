@@ -181,6 +181,12 @@ td:last-child { width: 32px; padding-right: 15px; color: #9da8a0; }
 .login-form input:focus { border-color: #7eae8b; box-shadow: 0 0 0 3px #176b4a12; }
 .login-submit { min-height: 43px; justify-content: space-between; margin-top: 4px; padding: 0 15px; }
 .login-footnote { margin: 19px 0 0; color: #a0aaa2; font-size: 9px; }
+.login-footnote a { color: var(--green); font-weight: 700; }
+.registration-screen .login-panel { justify-content: flex-start; padding-top: 30px; padding-bottom: 30px; }
+.registration-screen .login-brand { margin-bottom: 22px; }
+.registration-screen .login-form { margin-top: 20px; }
+.registration-errors { margin: 0 0 16px; padding: 11px 13px 11px 29px; border: 1px solid #f1d3d0; border-radius: 8px; color: #9b4542; background: #fff6f4; font-size: 10px; line-height: 1.6; }
+.registration-errors li + li { margin-top: 4px; }
 .login-art { position: relative; display: flex; align-items: center; overflow: hidden; min-height: 100vh; padding: clamp(40px, 7vw, 100px); color: #fff; background: radial-gradient(ellipse at 80% 15%, #3d8a6355, transparent 44%), linear-gradient(145deg, #163e2b, #102e22 70%, #0c261b); }
 .art-copy { position: relative; z-index: 1; width: 100%; max-width: 450px; margin: auto; }
 .art-kicker { display: inline-flex; align-items: center; gap: 10px; color: #b7d8bf; font-size: 9px; font-weight: 700; letter-spacing: 1.7px; }

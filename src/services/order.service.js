@@ -306,6 +306,140 @@ async function getShopOrder(userId, orderId) {
   };
 }
 
+function mapSupplierOrderRow(row) {
+  return {
+    id: row.id,
+    shopId: row.shopId,
+    shopName: row.shopName,
+    customerName: row.customerName,
+    customerEmail: row.customerEmail,
+    customerPhone: row.customerPhone,
+    customerLocation: row.customerLocation,
+    status: row.status,
+    totalAmount: Number(row.totalAmount),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    items: [],
+  };
+}
+
+function mapSupplierOrderItem(row) {
+  return {
+    productId: row.productId,
+    productName: row.productName,
+    quantity: row.quantity,
+    unitPrice: Number(row.unitPrice),
+    lineTotal: Number(row.lineTotal),
+  };
+}
+
+async function getSupplierId(userId) {
+  const [suppliers] = await pool.execute(
+    'SELECT id FROM suppliers WHERE user_id = ? LIMIT 1',
+    [userId],
+  );
+
+  if (suppliers.length === 0) {
+    throw createHttpError(404, 'Supplier profile not found');
+  }
+
+  return suppliers[0].id;
+}
+
+async function listSupplierOrders(userId) {
+  const supplierId = await getSupplierId(userId);
+  const [rows] = await pool.execute(
+    `SELECT orders.id,
+            orders.shop_id AS shopId,
+            shops.shop_name AS shopName,
+            users.name AS customerName,
+            users.email AS customerEmail,
+            shops.phone AS customerPhone,
+            shops.location AS customerLocation,
+            orders.status,
+            orders.total_amount AS totalAmount,
+            orders.created_at AS createdAt,
+            orders.updated_at AS updatedAt,
+            order_items.product_id AS productId,
+            products.name AS productName,
+            order_items.quantity,
+            order_items.unit_price AS unitPrice,
+            order_items.line_total AS lineTotal
+     FROM orders
+     INNER JOIN shops ON shops.id = orders.shop_id
+     INNER JOIN users ON users.id = shops.user_id
+     INNER JOIN order_items ON order_items.order_id = orders.id
+     INNER JOIN products ON products.id = order_items.product_id
+     WHERE products.supplier_id = ?
+     ORDER BY orders.created_at DESC, orders.id DESC, order_items.id ASC`,
+    [supplierId],
+  );
+
+  const ordersById = new Map();
+  for (const row of rows) {
+    let order = ordersById.get(row.id);
+    if (!order) {
+      order = mapSupplierOrderRow(row);
+      ordersById.set(row.id, order);
+    }
+    order.items.push(mapSupplierOrderItem(row));
+  }
+
+  return [...ordersById.values()];
+}
+
+async function getSupplierOrder(userId, orderId) {
+  const supplierId = await getSupplierId(userId);
+  const [orders] = await pool.execute(
+    `SELECT orders.id,
+            orders.shop_id AS shopId,
+            shops.shop_name AS shopName,
+            users.name AS customerName,
+            users.email AS customerEmail,
+            shops.phone AS customerPhone,
+            shops.location AS customerLocation,
+            orders.status,
+            orders.total_amount AS totalAmount,
+            orders.created_at AS createdAt,
+            orders.updated_at AS updatedAt
+     FROM orders
+     INNER JOIN shops ON shops.id = orders.shop_id
+     INNER JOIN users ON users.id = shops.user_id
+     WHERE orders.id = ?
+       AND EXISTS (
+         SELECT 1
+         FROM order_items
+         INNER JOIN products ON products.id = order_items.product_id
+         WHERE order_items.order_id = orders.id
+           AND products.supplier_id = ?
+       )
+     LIMIT 1`,
+    [orderId, supplierId],
+  );
+
+  if (orders.length === 0) {
+    return null;
+  }
+
+  const order = mapSupplierOrderRow(orders[0]);
+  const [items] = await pool.execute(
+    `SELECT order_items.product_id AS productId,
+            products.name AS productName,
+            order_items.quantity,
+            order_items.unit_price AS unitPrice,
+            order_items.line_total AS lineTotal
+     FROM order_items
+     INNER JOIN products ON products.id = order_items.product_id
+     WHERE order_items.order_id = ?
+       AND products.supplier_id = ?
+     ORDER BY order_items.id ASC`,
+    [order.id, supplierId],
+  );
+
+  order.items = items.map(mapSupplierOrderItem);
+  return order;
+}
+
 async function updateSupplierOrderStatus(userId, orderId, newStatus) {
   const connection = await pool.getConnection();
   let transactionStarted = false;
@@ -394,5 +528,7 @@ module.exports = {
   createShopOrder,
   listShopOrders,
   getShopOrder,
+  listSupplierOrders,
+  getSupplierOrder,
   updateSupplierOrderStatus,
 };

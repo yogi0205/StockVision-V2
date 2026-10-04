@@ -8,6 +8,7 @@ describe('Order API', () => {
   let productId;
   let orderId;
   let supplierId;
+  let otherSupplierOrderId;
 
   const suffix = Date.now();
 
@@ -139,6 +140,124 @@ describe('Order API', () => {
     expect(response.statusCode).toBe(200);
     expect(response.body).toHaveProperty('order');
     expect(response.body.order.id).toBe(orderId);
+  });
+
+  test('Supplier should list and view orders containing its products', async () => {
+    const listResponse = await request(app)
+      .get('/suppliers/orders')
+      .set('Authorization', `Bearer ${supplierToken}`);
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.body.orders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: orderId,
+          shopName: 'Jest Order Shop',
+          customerName: 'Jest Order Shop',
+          customerEmail: shopEmail,
+          status: 'PENDING',
+          totalAmount: 200,
+          createdAt: expect.any(String),
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              productId,
+              productName: 'Jest Order Product',
+              quantity: 2,
+              unitPrice: 100,
+              lineTotal: 200,
+            }),
+          ]),
+        }),
+      ]),
+    );
+
+    const detailResponse = await request(app)
+      .get(`/suppliers/orders/${orderId}`)
+      .set('Authorization', `Bearer ${supplierToken}`);
+
+    expect(detailResponse.statusCode).toBe(200);
+    expect(detailResponse.body.order).toMatchObject({
+      id: orderId,
+      shopName: 'Jest Order Shop',
+      customerEmail: shopEmail,
+      status: 'PENDING',
+      totalAmount: 200,
+    });
+    expect(detailResponse.body.order.items).toEqual([
+      expect.objectContaining({
+        productId,
+        productName: 'Jest Order Product',
+        quantity: 2,
+        unitPrice: 100,
+        lineTotal: 200,
+      }),
+    ]);
+  });
+
+  test('Supplier cannot list or view another supplier orders', async () => {
+    const otherSupplierEmail = `jest-other-order-supplier-${suffix}@example.com`;
+    const registration = await request(app)
+      .post('/auth/register')
+      .send({
+        name: 'Other Jest Supplier',
+        email: otherSupplierEmail,
+        password: 'TestPassword123!',
+        role: 'SUPPLIER',
+        companyName: 'Other Jest Supplier Company',
+      });
+    expect(registration.statusCode).toBe(201);
+
+    const login = await request(app)
+      .post('/auth/login')
+      .send({
+        email: otherSupplierEmail,
+        password: 'TestPassword123!',
+      });
+    expect(login.statusCode).toBe(200);
+
+      const [otherSuppliers] = await pool.execute(
+        `SELECT suppliers.id
+         FROM suppliers
+         INNER JOIN users ON users.id = suppliers.user_id
+         WHERE users.email = ?
+         LIMIT 1`,
+        [otherSupplierEmail],
+      );
+      expect(otherSuppliers).toHaveLength(1);
+
+      const productResponse = await request(app)
+        .post('/suppliers/products')
+      .set('Authorization', `Bearer ${login.body.token}`)
+      .send({
+        name: 'Other Jest Supplier Product',
+        category: 'Electronics',
+        unit: 'piece',
+        price: 50,
+        stock: 10,
+      });
+    expect(productResponse.statusCode).toBe(201);
+
+    const orderResponse = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${shopToken}`)
+      .send({
+        supplierId: otherSuppliers[0].id,
+        items: [{ productId: productResponse.body.product.id, quantity: 1 }],
+      });
+    expect(orderResponse.statusCode).toBe(201);
+    otherSupplierOrderId = orderResponse.body.order.id;
+
+    const listResponse = await request(app)
+      .get('/suppliers/orders')
+      .set('Authorization', `Bearer ${supplierToken}`);
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.body.orders.map((order) => order.id))
+      .not.toContain(otherSupplierOrderId);
+
+    const detailResponse = await request(app)
+      .get(`/suppliers/orders/${otherSupplierOrderId}`)
+      .set('Authorization', `Bearer ${supplierToken}`);
+    expect(detailResponse.statusCode).toBe(404);
   });
 
   test('Supplier should confirm the order', async () => {

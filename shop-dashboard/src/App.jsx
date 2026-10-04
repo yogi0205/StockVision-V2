@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage'
 import LoginPage from './pages/LoginPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import OrdersPage from './pages/OrdersPage'
+import RegisterPage from './pages/RegisterPage'
 import SuppliersPage from './pages/SuppliersPage'
 import './App.css'
 
@@ -29,6 +30,7 @@ function DashboardApp() {
   const [cart, setCart] = useState([])
   const [placingOrder, setPlacingOrder] = useState(false)
   const [toast, setToast] = useState(null)
+  const [registrationMessage, setRegistrationMessage] = useState('')
   const toastTimer = useRef(null)
 
   const navigate = useCallback((nextRoute) => {
@@ -38,8 +40,8 @@ function DashboardApp() {
   useEffect(() => () => window.clearTimeout(toastTimer.current), [])
 
   useEffect(() => {
-    if (!loading && !token && route !== '/login') navigate('/login')
-    if (!loading && token && route === '/login') navigate('/dashboard')
+    if (!loading && !token && route !== '/login' && route !== '/register') navigate('/login')
+    if (!loading && token && (route === '/login' || route === '/register')) navigate('/dashboard')
   }, [loading, token, route, navigate])
 
   const showMessage = useCallback((message, kind = 'success') => {
@@ -125,7 +127,13 @@ function DashboardApp() {
   }, [logout, navigate])
 
   if (loading) return <div className="auth-loading"><Spinner label="Verifying your session…" /></div>
-  if (!token) return <LoginPage onLogin={login} />
+  if (!token && route === '/register') {
+    return <RegisterPage onRegistered={() => {
+      setRegistrationMessage('Registration successful. You can now sign in.')
+      navigate('/login')
+    }} />
+  }
+  if (!token) return <LoginPage onLogin={login} registrationMessage={registrationMessage} />
 
   const activeRoute = route === '/login' ? '/dashboard' : route
   let page

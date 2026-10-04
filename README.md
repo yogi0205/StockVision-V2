@@ -61,7 +61,7 @@ StockVision V2 provides separate React dashboards and workflows for suppliers an
 The React frontends are maintained in separate directories:
 
 - `shop-dashboard/` — Shop users can browse suppliers and products, manage a cart, place orders, and view order details and status.
-- `supplier-dashboard/` — Suppliers can view inventory summaries, manage products and stock, update order statuses, and view their profile. Supplier order listing and detail pages are not included because the current backend does not expose supplier-specific order listing/detail endpoints.
+- `supplier-dashboard/` — Suppliers can view inventory summaries, manage products and stock, list orders containing their products, view order details, update order statuses, and view their profile.
 
 ---
 

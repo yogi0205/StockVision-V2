@@ -2,6 +2,8 @@ const {
   createShopOrder,
   listShopOrders,
   getShopOrder,
+  listSupplierOrders,
+  getSupplierOrder,
   updateSupplierOrderStatus,
 } = require('../services/order.service');
 
@@ -32,6 +34,24 @@ async function getOrder(req, res) {
   return res.status(200).json({ order });
 }
 
+async function getSupplierOrders(req, res) {
+  const orders = await listSupplierOrders(req.user.userId);
+
+  return res.status(200).json({ orders });
+}
+
+async function getSupplierOrderDetails(req, res) {
+  const order = await getSupplierOrder(req.user.userId, req.params.id);
+
+  if (!order) {
+    return res.status(404).json({
+      message: 'Order not found',
+    });
+  }
+
+  return res.status(200).json({ order });
+}
+
 async function updateOrderStatus(req, res) {
   const order = await updateSupplierOrderStatus(
     req.user.userId,
@@ -49,5 +69,7 @@ module.exports = {
   createOrder,
   getOrders,
   getOrder,
+  getSupplierOrders,
+  getSupplierOrderDetails,
   updateOrderStatus,
 };

@@ -107,6 +107,13 @@ td { height: 53px; padding: 0 15px; border-top: 1px solid #f0f2f0; color: #67736
 .alert-error + .management-grid { margin-top: 15px; }
 .orders-unavailable { margin-bottom: 17px; }
 .orders-unavailable .empty-state { min-height: 176px; }
+.orders-list-card,.supplier-order-detail { margin-bottom: 17px; overflow: hidden; }
+.supplier-order-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 13px 20px; padding: 17px 19px; border-bottom: 1px solid #eef1ee; }
+.supplier-order-meta > div { min-width: 0; display: grid; gap: 5px; }
+.supplier-order-meta span { color: #89948c; font-size: 9px; }
+.supplier-order-meta strong { overflow-wrap: anywhere; color: #445249; font-size: 10px; font-weight: 600; }
+.supplier-order-detail tfoot th { height: 44px; color: #445249; background: #fcfdfc; font-size: 9px; }
+.supplier-order-detail tfoot th:last-child { text-align: right; }
 .status-update-card { max-width: 780px; }
 .status-form { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; padding: 17px 18px; }
 .status-form > div { display: grid; gap: 8px; }
@@ -139,6 +146,12 @@ td { height: 53px; padding: 0 15px; border-top: 1px solid #f0f2f0; color: #67736
 .login-form input:focus { border-color: #7eae8b; box-shadow: 0 0 0 3px #176b4a12; }
 .login-submit { min-height: 43px; justify-content: space-between; margin-top: 4px; padding: 0 15px; }
 .login-footnote { margin: 19px 0 0; color: #a0aaa2; font-size: 9px; }
+.login-footnote a { color: var(--green); font-weight: 700; }
+.registration-screen .login-panel { justify-content: flex-start; padding-top: 30px; padding-bottom: 30px; }
+.registration-screen .login-brand { margin-bottom: 22px; }
+.registration-screen .login-form { margin-top: 20px; }
+.registration-errors { margin: 0 0 16px; padding: 11px 13px 11px 29px; border: 1px solid #f1d3d0; border-radius: 8px; color: #9b4542; background: #fff6f4; font-size: 10px; line-height: 1.6; }
+.registration-errors li + li { margin-top: 4px; }
 .login-art { position: relative; display: flex; align-items: center; overflow: hidden; min-height: 100vh; padding: clamp(40px, 7vw, 100px); color: #fff; background: radial-gradient(ellipse at 80% 15%, #3d8a6355, transparent 44%), linear-gradient(145deg, #163e2b, #102e22 70%, #0c261b); }
 .art-copy { position: relative; z-index: 1; width: 100%; max-width: 450px; margin: auto; }
 .art-kicker { display: inline-flex; align-items: center; gap: 10px; color: #b7d8bf; font-size: 9px; font-weight: 700; letter-spacing: 1.7px; }

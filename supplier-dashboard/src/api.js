@@ -1,10 +1,11 @@
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, errors = []) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.errors = errors
   }
 }
 
@@ -31,7 +32,11 @@ async function request(path, { token, ...options } = {}) {
       404: 'The requested record could not be found.',
       409: 'This change conflicts with the current record state.',
     }
-    throw new ApiError(result.message || fallback[response.status] || 'The request could not be completed.', response.status)
+    throw new ApiError(
+      result.message || fallback[response.status] || 'The request could not be completed.',
+      response.status,
+      result.errors || [],
+    )
   }
   return result
 }
@@ -41,8 +46,14 @@ export const api = {
     method: 'POST',
     body: JSON.stringify(credentials),
   }),
+  register: (registration) => request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(registration),
+  }),
   me: (token) => request('/auth/me', { token }),
   products: (token) => request('/suppliers/products', { token }),
+  supplierOrders: (token) => request('/suppliers/orders', { token }),
+  supplierOrder: (token, orderId) => request(`/suppliers/orders/${orderId}`, { token }),
   createProduct: (token, product) => request('/suppliers/products', {
     token,
     method: 'POST',

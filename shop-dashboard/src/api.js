@@ -2,10 +2,11 @@ const API_URL = (import.meta.env.VITE_API_URL || '')
   .replace(/\/+$/, '')
 
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, errors = []) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.errors = errors
   }
 }
 
@@ -26,7 +27,7 @@ async function request(path, { token, ...options } = {}) {
 
   const result = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new ApiError(result.message || 'The request could not be completed.', response.status)
+    throw new ApiError(result.message || 'The request could not be completed.', response.status, result.errors || [])
   }
   return result
 }
@@ -35,6 +36,10 @@ export const api = {
   login: (credentials) => request('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
+  }),
+  register: (registration) => request('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify(registration),
   }),
   me: (token) => request('/auth/me', { token }),
   suppliers: (token) => request('/shops/suppliers', { token }),
