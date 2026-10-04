@@ -122,9 +122,12 @@ async function loginUser(credentials) {
   );
 
  const user = users[0];
- 
+
  console.info('AUTH LOGIN DIAGNOSTIC:', {
   release: process.env.RENDER_GIT_COMMIT || 'unknown',
+  dbHost: process.env.DB_HOST,
+  dbPort: process.env.DB_PORT,
+  dbName: process.env.DB_NAME,
   userFound: Boolean(user),
 });
 
