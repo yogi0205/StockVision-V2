@@ -135,19 +135,19 @@ async function loginUser(credentials) {
 
   // Temporary production login diagnostic.
   // Does not log password or password_hash.
-  console.log('LOGIN USER CHECK:', {
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    is_active: user.is_active,
-  });
+  // console.log('LOGIN USER CHECK:', {
+  //   id: user.id,
+  //   email: user.email,
+  //   role: user.role,
+  //   is_active: user.is_active,
+  // });
 
   const passwordMatches = await bcrypt.compare(
     credentials.password,
     user.password_hash,
   );
 
-  console.log('PASSWORD MATCH RESULT:', passwordMatches);
+  //console.log('PASSWORD MATCH RESULT:', passwordMatches);
 
   if (!passwordMatches) {
     throw createAuthenticationError();
