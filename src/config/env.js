@@ -12,5 +12,6 @@ module.exports = {
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     name: process.env.DB_NAME || 'stockvision_v2',
+    ssl: process.env.DB_SSL === 'true',
   },
 };

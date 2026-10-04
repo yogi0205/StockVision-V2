@@ -1,7 +1,7 @@
 const mysql = require('mysql2/promise');
 const { database } = require('./env');
 
-const pool = mysql.createPool({
+const poolConfig = {
   host: database.host,
   port: database.port,
   user: database.user,
@@ -11,7 +11,15 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-});
+};
+
+if (database.ssl) {
+  poolConfig.ssl = {
+    rejectUnauthorized: false,
+  };
+}
+
+const pool = mysql.createPool(poolConfig);
 
 async function testDatabaseConnection() {
   try {
@@ -29,9 +37,11 @@ async function testDatabaseConnection() {
       address: error.address,
       port: error.port,
     });
+
     if (error.stack) {
       console.error(error.stack);
     }
+
     throw error;
   }
 }
