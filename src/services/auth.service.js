@@ -116,6 +116,12 @@ async function loginUser(credentials) {
   }
 
   if (!user.is_active) {
+    console.log('LOGIN USER CHECK:', {
+  id: user?.id,
+  email: user?.email,
+  role: user?.role,
+  is_active: user?.is_active,
+});
     const error = new Error('Account is inactive');
     error.status = 403;
     throw error;
