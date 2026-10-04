@@ -122,6 +122,11 @@ async function loginUser(credentials) {
   );
 
  const user = users[0];
+ 
+ console.info('AUTH LOGIN DIAGNOSTIC:', {
+  release: process.env.RENDER_GIT_COMMIT || 'unknown',
+  userFound: Boolean(user),
+});
 
 if (!user) {
   throw createAuthenticationError();
