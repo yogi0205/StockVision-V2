@@ -17,6 +17,7 @@ function createAuthenticationError() {
 
 async function registerUser(registration) {
   const email = registration.email.toLowerCase();
+
   const [existingUsers] = await pool.execute(
     'SELECT id FROM users WHERE email = ? LIMIT 1',
     [email],
@@ -27,6 +28,7 @@ async function registerUser(registration) {
   }
 
   const passwordHash = await bcrypt.hash(registration.password, 12);
+
   const connection = await pool.getConnection();
   let transactionStarted = false;
 
@@ -35,16 +37,23 @@ async function registerUser(registration) {
     transactionStarted = true;
 
     let result;
+
     try {
       [result] = await connection.execute(
         `INSERT INTO users (name, email, password_hash, role)
          VALUES (?, ?, ?, ?)`,
-        [registration.name, email, passwordHash, registration.role],
+        [
+          registration.name,
+          email,
+          passwordHash,
+          registration.role,
+        ],
       );
     } catch (error) {
       if (error.code === 'ER_DUP_ENTRY') {
         throw createConflictError();
       }
+
       throw error;
     }
 
@@ -94,6 +103,7 @@ async function registerUser(registration) {
         );
       }
     }
+
     throw error;
   } finally {
     connection.release();
@@ -102,6 +112,7 @@ async function registerUser(registration) {
 
 async function loginUser(credentials) {
   const email = credentials.email.toLowerCase();
+
   const [users] = await pool.execute(
     `SELECT id, name, email, password_hash, role, is_active
      FROM users
@@ -111,26 +122,33 @@ async function loginUser(credentials) {
   );
 
   const user = users[0];
+
   if (!user) {
     throw createAuthenticationError();
   }
 
   if (!user.is_active) {
-    console.log('LOGIN USER CHECK:', {
-  id: user?.id,
-  email: user?.email,
-  role: user?.role,
-  is_active: user?.is_active,
-});
     const error = new Error('Account is inactive');
     error.status = 403;
     throw error;
   }
 
+  // Temporary production login diagnostic.
+  // Does not log password or password_hash.
+  console.log('LOGIN USER CHECK:', {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    is_active: user.is_active,
+  });
+
   const passwordMatches = await bcrypt.compare(
     credentials.password,
     user.password_hash,
   );
+
+  console.log('PASSWORD MATCH RESULT:', passwordMatches);
+
   if (!passwordMatches) {
     throw createAuthenticationError();
   }
@@ -142,9 +160,15 @@ async function loginUser(credentials) {
   }
 
   const token = jwt.sign(
-    { userId: user.id, role: user.role },
+    {
+      userId: user.id,
+      role: user.role,
+    },
     jwtSecret,
-    { expiresIn: jwtExpiresIn, noTimestamp: true },
+    {
+      expiresIn: jwtExpiresIn,
+      noTimestamp: true,
+    },
   );
 
   return {
