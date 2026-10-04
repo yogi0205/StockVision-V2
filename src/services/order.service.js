@@ -3,6 +3,7 @@ const { pool } = require('../config/db');
 const {
   publishOrderCreatedEvent,
   publishOrderStatusUpdatedEvent,
+  publishStockUpdatedEvent,
 } = require('./kafka.service');
 
 const MAX_DECIMAL_CENTS = 999999999999n;
@@ -178,6 +179,19 @@ async function createShopOrder(userId, orderRequest) {
       totalAmount: Number(centsToDecimal(totalCents)),
       status: 'PENDING',
     });
+
+    for (const productId of sortedProductIds) {
+      const product = products.get(productId);
+      await publishStockUpdatedEvent({
+        eventId: randomUUID(),
+        productId,
+        supplierId,
+        oldStock: product.stock,
+        newStock: Number(
+          BigInt(product.stock) - requestedQuantities.get(productId),
+        ),
+      });
+    }
 
     return {
       id: orderResult.insertId,
