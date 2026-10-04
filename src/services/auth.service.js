@@ -123,23 +123,6 @@ async function loginUser(credentials) {
 
  const user = users[0];
 
- const [[diagnostic]] = await pool.execute(
-  `SELECT
-     COUNT(*) AS total_users,
-     SUM(CASE WHEN email = ? THEN 1 ELSE 0 END) AS exact_email_matches
-   FROM users`,
-  [email],
-);
-
-console.info('AUTH LOGIN DIAGNOSTIC:', {
-  release: process.env.RENDER_GIT_COMMIT || 'unknown',
-  dbHost: process.env.DB_HOST,
-  dbPort: process.env.DB_PORT,
-  dbName: process.env.DB_NAME,
-  totalUsers: diagnostic.total_users,
-  exactEmailMatches: diagnostic.exact_email_matches,
-  userFound: Boolean(user),
-});
 
 if (!user) {
   throw createAuthenticationError();
