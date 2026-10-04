@@ -121,38 +121,38 @@ async function loginUser(credentials) {
     [email],
   );
 
-  const user = users[0];
+ const user = users[0];
 
-  if (!user) {
-    throw createAuthenticationError();
-  }
+if (!user) {
+  throw createAuthenticationError();
+}
 
-  if (!user.is_active) {
-    const error = new Error('Account is inactive');
-    error.status = 403;
-    throw error;
-  }
+if (!user.is_active) {
+  const error = new Error('Account is inactive');
+  error.status = 403;
+  throw error;
+}
 
-  // Temporary production login diagnostic.
-  // Does not log password or password_hash.
-  // console.log('LOGIN USER CHECK:', {
-  //   id: user.id,
-  //   email: user.email,
-  //   role: user.role,
-  //   is_active: user.is_active,
-  // });
+console.log('LOGIN DEBUG:', {
+  id: user.id,
+  email: user.email,
+  role: user.role,
+  is_active: user.is_active,
+  passwordLength: credentials.password.length,
+  hashLength: user.password_hash?.length,
+  hashPrefix: user.password_hash?.substring(0, 4),
+});
 
-  const passwordMatches = await bcrypt.compare(
-    credentials.password,
-    user.password_hash,
-  );
+const passwordMatches = await bcrypt.compare(
+  credentials.password,
+  user.password_hash,
+);
 
-  //console.log('PASSWORD MATCH RESULT:', passwordMatches);
+console.log('BCRYPT RESULT:', passwordMatches);
 
-  if (!passwordMatches) {
-    throw createAuthenticationError();
-  }
-
+if (!passwordMatches) {
+  throw createAuthenticationError();
+}
   if (!jwtSecret) {
     const error = new Error('JWT_SECRET is not configured');
     error.status = 500;
