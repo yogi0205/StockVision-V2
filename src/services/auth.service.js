@@ -133,22 +133,12 @@ if (!user.is_active) {
   throw error;
 }
 
-console.log('LOGIN DEBUG:', {
-  id: user.id,
-  email: user.email,
-  role: user.role,
-  is_active: user.is_active,
-  passwordLength: credentials.password.length,
-  hashLength: user.password_hash?.length,
-  hashPrefix: user.password_hash?.substring(0, 4),
-});
 
 const passwordMatches = await bcrypt.compare(
   credentials.password,
   user.password_hash,
 );
 
-console.log('BCRYPT RESULT:', passwordMatches);
 
 if (!passwordMatches) {
   throw createAuthenticationError();
