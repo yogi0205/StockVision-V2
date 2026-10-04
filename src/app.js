@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const authRoutes = require('./routes/auth.routes');
@@ -7,6 +8,31 @@ const shopRoutes = require('./routes/shop.routes');
 const orderRoutes = require('./routes/order.routes');
 
 const app = express();
+
+// Allow frontend dashboards
+const allowedOrigins = [
+  'https://stockvision-shop.onrender.com',
+  'https://stockvision-supplier.onrender.com',
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // such as curl, Postman, Swagger, and server-to-server requests.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  })
+);
 
 // Parse JSON request bodies
 app.use(express.json({ limit: '1mb' }));
@@ -37,6 +63,13 @@ app.use((req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error(err);
+
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS origin not allowed',
+    });
+  }
 
   // Malformed JSON request body
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
