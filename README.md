@@ -1,8 +1,8 @@
 # StockVision V2
 
-A real-time supplier inventory and order management backend built with **Node.js, Express.js, MySQL, Redis, Apache Kafka, and WebSockets**.
+A complete real-time supplier inventory and order management platform built with **Node.js, Express.js, MySQL, Redis, Apache Kafka, WebSockets, and React**.
 
-StockVision V2 provides separate workflows for suppliers and shops, secure authentication, inventory management, transactional order processing, Redis caching, Kafka-based event communication, and real-time WebSocket updates.
+StockVision V2 provides separate React dashboards and workflows for suppliers and shops, secure authentication, inventory management, transactional order processing, Redis caching, Kafka-based event communication, and real-time WebSocket updates.
 
 ---
 
@@ -44,6 +44,7 @@ StockVision V2 provides separate workflows for suppliers and shops, secure authe
 | Apache Kafka 4.2.2 | Event streaming |
 | KafkaJS | Kafka integration |
 | WebSocket | Real-time communication |
+| React | Shop and supplier dashboards |
 | JWT | Authentication |
 | bcryptjs | Password hashing |
 | Joi | Request validation |
@@ -55,14 +56,24 @@ StockVision V2 provides separate workflows for suppliers and shops, secure authe
 
 ---
 
+## Frontend Dashboards
+
+The React frontends are maintained in separate directories:
+
+- `shop-dashboard/` — Shop users can browse suppliers and products, manage a cart, place orders, and view order details and status.
+- `supplier-dashboard/` — Suppliers can view inventory summaries, manage products and stock, update order statuses, and view their profile. Supplier order listing and detail pages are not included because the current backend does not expose supplier-specific order listing/detail endpoints.
+
+---
+
 ## Architecture
 
 ```text
-                         ┌─────────────────────┐
-                         │      Shop Client    │
-                         └──────────┬──────────┘
-                                    │
-                              REST / WebSocket
+       ┌───────────────────────┐        ┌──────────────────────────┐
+       │ Shop Dashboard        │        │ Supplier Dashboard       │
+       │ React                 │        │ React                    │
+       └───────────┬───────────┘        └────────────┬─────────────┘
+                   │                                 │
+                   └──────────── REST ───────────────┘
                                     │
                                     ▼
                          ┌─────────────────────┐
@@ -416,7 +427,7 @@ Supplier functionality includes:
 - List products
 - Get product details
 - Update stock
-- View stock history
+- Track stock history through backend inventory records
 
 ---
 
@@ -609,8 +620,8 @@ The application uses KafkaJS.
 Configured topics include:
 
 ```text
-inventory.stock.depleted
 inventory.stock.updated
+inventory.stock.depleted
 order.created
 order.status.updated
 ```
@@ -801,11 +812,11 @@ Current verified result:
 
 ```text
 Test Suites: 8 passed, 8 total
-Tests:       23 passed, 23 total
+Tests:       24 passed, 24 total
 Snapshots:   0 total
 ```
 
-All 23 tests are currently passing.
+All 24 tests are currently passing.
 
 ---
 
@@ -1022,13 +1033,13 @@ https://github.com/yogi0205/StockVision-V2
 Latest verified implementation commit:
 
 ```text
-61a1100
+7938568
 ```
 
 Commit message:
 
 ```text
-Complete StockVision V2 implementation and testing
+Fix order inventory realtime event
 ```
 
 ---
@@ -1072,15 +1083,18 @@ Potential future improvements include:
 - CI/CD pipeline
 - Automated database migrations
 - More extensive integration and load testing
-- Frontend shop dashboard integration
 
 ---
 
 # Project Status
 
-StockVision V2 currently provides a functional real-time inventory and order management backend with:
+StockVision V2 currently provides a complete real-time inventory and order management platform with:
 
 ```text
+React Shop Dashboard
+   +
+React Supplier Dashboard
+   +
 REST API
    +
 MySQL
@@ -1100,7 +1114,7 @@ The current test suite passes:
 
 ```text
 8 Test Suites
-23 Tests
+24 Tests
 0 Failures
 ```
 
