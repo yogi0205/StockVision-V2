@@ -492,6 +492,69 @@ async function updateSupplierOrderStatus(userId, orderId, newStatus) {
       [newStatus, order.id, supplierId],
     );
 
+    const restoredStock = [];
+    if (newStatus === 'CANCELLED') {
+      const [items] = await connection.execute(
+        `SELECT product_id AS productId, quantity
+         FROM order_items
+         WHERE order_id = ?
+         ORDER BY product_id ASC, id ASC`,
+        [order.id],
+      );
+      const quantitiesByProduct = new Map();
+
+      for (const item of items) {
+        quantitiesByProduct.set(
+          item.productId,
+          (quantitiesByProduct.get(item.productId) || 0n) + BigInt(item.quantity),
+        );
+      }
+
+      const sortedProductIds = [...quantitiesByProduct.keys()]
+        .sort((a, b) => a - b);
+
+      for (const productId of sortedProductIds) {
+        const [products] = await connection.execute(
+          `SELECT id, stock
+           FROM products
+           WHERE id = ? AND supplier_id = ?
+           LIMIT 1
+           FOR UPDATE`,
+          [productId, supplierId],
+        );
+        const product = products[0];
+
+        if (!product) {
+          throw createHttpError(404, 'Product not found');
+        }
+
+        const oldStock = product.stock;
+        const newStock = Number(
+          BigInt(oldStock) + quantitiesByProduct.get(productId),
+        );
+
+        await connection.execute(
+          `UPDATE products
+           SET stock = ?, version = version + 1
+           WHERE id = ? AND supplier_id = ?`,
+          [newStock, productId, supplierId],
+        );
+
+        await connection.execute(
+          `INSERT INTO stock_history
+             (product_id, supplier_id, old_stock, new_stock, change_type, event_id)
+           VALUES (?, ?, ?, ?, 'ORDER_CANCELLED', NULL)`,
+          [productId, supplierId, oldStock, newStock],
+        );
+
+        restoredStock.push({
+          productId,
+          oldStock,
+          newStock,
+        });
+      }
+    }
+
     await connection.commit();
     transactionStarted = false;
 
@@ -502,6 +565,16 @@ async function updateSupplierOrderStatus(userId, orderId, newStatus) {
       oldStatus: order.status,
       newStatus,
     });
+
+    for (const product of restoredStock) {
+      await publishStockUpdatedEvent({
+        eventId: randomUUID(),
+        productId: product.productId,
+        supplierId,
+        oldStock: product.oldStock,
+        newStock: product.newStock,
+      });
+    }
 
     return {
       id: order.id,

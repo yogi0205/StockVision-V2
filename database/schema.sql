@@ -162,7 +162,8 @@ CREATE TABLE stock_history (
     change_type ENUM(
         'MANUAL_UPDATE',
         'ORDER',
-        'RESTOCK'
+        'RESTOCK',
+        'ORDER_CANCELLED'
     ) NOT NULL,
     event_id CHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

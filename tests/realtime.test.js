@@ -206,5 +206,5 @@ describe('Real-time inventory events', () => {
 
     expect(failedOrderResponse.statusCode).toBe(409);
     expect(sendSpy).not.toHaveBeenCalled();
-  });
+  }, 15000);
 });

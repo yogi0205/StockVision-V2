@@ -12,7 +12,12 @@ const {
 
 const EVENT_TIMEOUT_MS = 15000;
 
-function waitForMessage(socket, expectedType, timeoutMs = EVENT_TIMEOUT_MS) {
+function waitForMessage(
+  socket,
+  expectedType,
+  timeoutMs = EVENT_TIMEOUT_MS,
+  predicate = () => true,
+) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
@@ -35,7 +40,7 @@ function waitForMessage(socket, expectedType, timeoutMs = EVENT_TIMEOUT_MS) {
         return;
       }
 
-      if (message.type === expectedType) {
+      if (message.type === expectedType && predicate(message)) {
         cleanup();
         resolve(message);
       } else if (message.type === 'auth.error' || message.type === 'subscription.error') {
@@ -67,7 +72,7 @@ function waitForConsumerGroupJoin(consumer) {
   });
 }
 
-describe('Order-created WebSocket event', () => {
+describe('Order and inventory WebSocket events', () => {
   let server;
   let webSocketServer;
   let consumer;
@@ -91,12 +96,19 @@ describe('Order-created WebSocket event', () => {
       topic: 'order.created',
       fromBeginning: false,
     });
+    await consumer.subscribe({
+      topic: 'inventory.stock.updated',
+      fromBeginning: false,
+    });
 
     const groupJoin = waitForConsumerGroupJoin(consumer);
     await consumer.run({
       eachMessage: async ({ topic, message }) => {
         const event = JSON.parse(message.value.toString());
-        if (topic === 'order.created' && event.supplierId) {
+        if (
+          ['order.created', 'inventory.stock.updated'].includes(topic)
+          && event.supplierId
+        ) {
           broadcastToSupplier(event.supplierId, {
             type: topic,
             data: event,
@@ -320,6 +332,38 @@ describe('Order-created WebSocket event', () => {
           totalAmount: 20,
         },
       });
+
+      const stockUpdatedMessage = waitForMessage(
+        client,
+        'inventory.stock.updated',
+        EVENT_TIMEOUT_MS,
+        (message) => (
+          message.data.productId === productId
+          && message.data.oldStock === 8
+          && message.data.newStock === 10
+        ),
+      );
+      const cancellationResponse = await request(app)
+        .patch(`/orders/${orderResponse.body.order.id}/status`)
+        .set('Authorization', `Bearer ${supplierToken}`)
+        .send({ status: 'CANCELLED' });
+
+      expect(cancellationResponse.statusCode).toBe(200);
+      expect(await stockUpdatedMessage).toMatchObject({
+        type: 'inventory.stock.updated',
+        data: {
+          productId,
+          supplierId,
+          oldStock: 8,
+          newStock: 10,
+        },
+      });
+
+      const [committedOrder] = await pool.execute(
+        'SELECT status FROM orders WHERE id = ?',
+        [orderResponse.body.order.id],
+      );
+      expect(committedOrder[0].status).toBe('CANCELLED');
     },
     60000,
   );

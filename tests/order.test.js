@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../src/app');
 const { pool } = require('../src/config/db');
+const { producer } = require('../src/config/kafka');
 
 describe('Order API', () => {
   let supplierToken;
@@ -14,6 +15,37 @@ describe('Order API', () => {
 
   const supplierEmail = `jest-order-supplier-${suffix}@example.com`;
   const shopEmail = `jest-order-shop-${suffix}@example.com`;
+
+  async function createShopOrder(quantity) {
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${shopToken}`)
+      .send({
+        supplierId,
+        items: [{ productId, quantity }],
+      });
+
+    expect(response.statusCode).toBe(201);
+    return response.body.order.id;
+  }
+
+  async function getProductStock() {
+    const [rows] = await pool.execute(
+      'SELECT stock FROM products WHERE id = ?',
+      [productId],
+    );
+    return Number(rows[0].stock);
+  }
+
+  async function getCancellationHistoryCount() {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) AS count
+       FROM stock_history
+       WHERE product_id = ? AND change_type = 'ORDER_CANCELLED'`,
+      [productId],
+    );
+    return Number(rows[0].count);
+  }
 
   test('Create supplier', async () => {
     const response = await request(app)
@@ -295,5 +327,140 @@ describe('Order API', () => {
       });
 
     expect(response.statusCode).toBe(409);
+  });
+
+  test('Cancelling a PENDING order restores stock and records stock history', async () => {
+    const startingStock = await getProductStock();
+    const cancelledOrderId = await createShopOrder(3);
+    const reservedStock = await getProductStock();
+
+    const response = await request(app)
+      .patch(`/orders/${cancelledOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CANCELLED' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.order).toMatchObject({
+      id: cancelledOrderId,
+      status: 'CANCELLED',
+    });
+    expect(await getProductStock()).toBe(startingStock);
+
+    const [historyRows] = await pool.execute(
+      `SELECT old_stock AS oldStock,
+              new_stock AS newStock,
+              change_type AS changeType
+       FROM stock_history
+       WHERE product_id = ? AND change_type = 'ORDER_CANCELLED'
+       ORDER BY id DESC
+       LIMIT 1`,
+      [productId],
+    );
+    expect(historyRows[0]).toMatchObject({
+      oldStock: reservedStock,
+      newStock: startingStock,
+      changeType: 'ORDER_CANCELLED',
+    });
+  });
+
+  test('Cancelling an already CANCELLED order is rejected without restoring stock again', async () => {
+    const cancelledOrderId = await createShopOrder(2);
+    const cancellation = await request(app)
+      .patch(`/orders/${cancelledOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CANCELLED' });
+    expect(cancellation.statusCode).toBe(200);
+
+    const stockAfterCancellation = await getProductStock();
+    const historyCount = await getCancellationHistoryCount();
+    const repeatedCancellation = await request(app)
+      .patch(`/orders/${cancelledOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CANCELLED' });
+
+    expect(repeatedCancellation.statusCode).toBe(409);
+    expect(await getProductStock()).toBe(stockAfterCancellation);
+    expect(await getCancellationHistoryCount()).toBe(historyCount);
+  });
+
+  test('Cancelling a CONFIRMED order restores stock', async () => {
+    const startingStock = await getProductStock();
+    const confirmedOrderId = await createShopOrder(4);
+    const confirmation = await request(app)
+      .patch(`/orders/${confirmedOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CONFIRMED' });
+    expect(confirmation.statusCode).toBe(200);
+
+    const response = await request(app)
+      .patch(`/orders/${confirmedOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CANCELLED' });
+
+    expect(response.statusCode).toBe(200);
+    expect(await getProductStock()).toBe(startingStock);
+  });
+
+  test('Cancelling a COMPLETED order is rejected without restoring stock', async () => {
+    const completedOrderId = await createShopOrder(1);
+    for (const status of ['CONFIRMED', 'PROCESSING', 'COMPLETED']) {
+      const transition = await request(app)
+        .patch(`/orders/${completedOrderId}/status`)
+        .set('Authorization', `Bearer ${supplierToken}`)
+        .send({ status });
+      expect(transition.statusCode).toBe(200);
+    }
+
+    const stockBeforeRejectedCancellation = await getProductStock();
+    const historyCount = await getCancellationHistoryCount();
+    const response = await request(app)
+      .patch(`/orders/${completedOrderId}/status`)
+      .set('Authorization', `Bearer ${supplierToken}`)
+      .send({ status: 'CANCELLED' });
+
+    expect(response.statusCode).toBe(409);
+    expect(await getProductStock()).toBe(stockBeforeRejectedCancellation);
+    expect(await getCancellationHistoryCount()).toBe(historyCount);
+  });
+
+  test('A failed cancellation rolls back status, stock, and history and publishes no stock event', async () => {
+    const pendingOrderId = await createShopOrder(2);
+    const stockBeforeCancellation = await getProductStock();
+    const historyCount = await getCancellationHistoryCount();
+    const triggerName = `jest_reject_order_cancel_${suffix}`;
+    const sendSpy = jest.spyOn(producer, 'send').mockResolvedValue([]);
+
+    try {
+      await pool.query(
+        `CREATE TRIGGER \`${triggerName}\`
+         BEFORE INSERT ON stock_history
+         FOR EACH ROW
+         BEGIN
+           IF NEW.change_type = 'ORDER_CANCELLED' THEN
+             SIGNAL SQLSTATE '45000'
+               SET MESSAGE_TEXT = 'Forced order cancellation failure';
+           END IF;
+         END`,
+      );
+
+      const response = await request(app)
+        .patch(`/orders/${pendingOrderId}/status`)
+        .set('Authorization', `Bearer ${supplierToken}`)
+        .send({ status: 'CANCELLED' });
+
+      expect(response.statusCode).toBe(500);
+      expect(await getProductStock()).toBe(stockBeforeCancellation);
+      expect(await getCancellationHistoryCount()).toBe(historyCount);
+
+      const [orders] = await pool.execute(
+        'SELECT status FROM orders WHERE id = ?',
+        [pendingOrderId],
+      );
+      expect(orders[0].status).toBe('PENDING');
+      expect(sendSpy).not.toHaveBeenCalled();
+    } finally {
+      sendSpy.mockRestore();
+      await pool.query(`DROP TRIGGER IF EXISTS \`${triggerName}\``);
+    }
   });
 });
