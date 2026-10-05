@@ -1,5 +1,8 @@
 const { pool } = require('../config/db');
 const redisClient = require('../config/redis');
+const {
+  getSupplierProductsCacheKey,
+} = require('./supplier-product-cache.service');
 
 async function listSuppliersForShop(userId) {
   const [shops] = await pool.execute(
@@ -54,7 +57,7 @@ async function getSupplierProductsForShop(userId, supplierId) {
     throw error;
   }
 
-  const cacheKey = `supplier:${suppliers[0].id}:products`;
+  const cacheKey = getSupplierProductsCacheKey(suppliers[0].id);
   const cachedResult = await redisClient.get(cacheKey);
   if (cachedResult) {
     return JSON.parse(cachedResult);

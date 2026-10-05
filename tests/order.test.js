@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../src/app');
 const { pool } = require('../src/config/db');
+const redisClient = require('../src/config/redis');
 const { producer } = require('../src/config/kafka');
 
 describe('Order API', () => {
@@ -15,6 +16,10 @@ describe('Order API', () => {
 
   const supplierEmail = `jest-order-supplier-${suffix}@example.com`;
   const shopEmail = `jest-order-shop-${suffix}@example.com`;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   async function createShopOrder(quantity) {
     const response = await request(app)
@@ -139,6 +144,8 @@ describe('Order API', () => {
   });
 
   test('Shop should create an order', async () => {
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+
     const response = await request(app)
       .post('/orders')
       .set('Authorization', `Bearer ${shopToken}`)
@@ -161,7 +168,26 @@ describe('Order API', () => {
       status: 'PENDING',
     });
 
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      `supplier:${supplierId}:products`,
+    );
+
     orderId = response.body.order.id;
+  });
+
+  test('Failed order creation does not invalidate the supplier product cache', async () => {
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+
+    const response = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${shopToken}`)
+      .send({
+        supplierId,
+        items: [{ productId, quantity: 1000 }],
+      });
+
+    expect(response.statusCode).toBe(409);
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
   test('Shop should view the created order', async () => {
@@ -180,6 +206,7 @@ describe('Order API', () => {
       .set('Authorization', `Bearer ${supplierToken}`);
 
     expect(listResponse.statusCode).toBe(200);
+
     expect(listResponse.body.orders).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -208,6 +235,7 @@ describe('Order API', () => {
       .set('Authorization', `Bearer ${supplierToken}`);
 
     expect(detailResponse.statusCode).toBe(200);
+
     expect(detailResponse.body.order).toMatchObject({
       id: orderId,
       shopName: 'Jest Order Shop',
@@ -215,6 +243,7 @@ describe('Order API', () => {
       status: 'PENDING',
       totalAmount: 200,
     });
+
     expect(detailResponse.body.order.items).toEqual([
       expect.objectContaining({
         productId,
@@ -228,6 +257,7 @@ describe('Order API', () => {
 
   test('Supplier cannot list or view another supplier orders', async () => {
     const otherSupplierEmail = `jest-other-order-supplier-${suffix}@example.com`;
+
     const registration = await request(app)
       .post('/auth/register')
       .send({
@@ -237,6 +267,7 @@ describe('Order API', () => {
         role: 'SUPPLIER',
         companyName: 'Other Jest Supplier Company',
       });
+
     expect(registration.statusCode).toBe(201);
 
     const login = await request(app)
@@ -245,20 +276,22 @@ describe('Order API', () => {
         email: otherSupplierEmail,
         password: 'TestPassword123!',
       });
+
     expect(login.statusCode).toBe(200);
 
-      const [otherSuppliers] = await pool.execute(
-        `SELECT suppliers.id
-         FROM suppliers
-         INNER JOIN users ON users.id = suppliers.user_id
-         WHERE users.email = ?
-         LIMIT 1`,
-        [otherSupplierEmail],
-      );
-      expect(otherSuppliers).toHaveLength(1);
+    const [otherSuppliers] = await pool.execute(
+      `SELECT suppliers.id
+       FROM suppliers
+       INNER JOIN users ON users.id = suppliers.user_id
+       WHERE users.email = ?
+       LIMIT 1`,
+      [otherSupplierEmail],
+    );
 
-      const productResponse = await request(app)
-        .post('/suppliers/products')
+    expect(otherSuppliers).toHaveLength(1);
+
+    const productResponse = await request(app)
+      .post('/suppliers/products')
       .set('Authorization', `Bearer ${login.body.token}`)
       .send({
         name: 'Other Jest Supplier Product',
@@ -267,6 +300,7 @@ describe('Order API', () => {
         price: 50,
         stock: 10,
       });
+
     expect(productResponse.statusCode).toBe(201);
 
     const orderResponse = await request(app)
@@ -274,25 +308,38 @@ describe('Order API', () => {
       .set('Authorization', `Bearer ${shopToken}`)
       .send({
         supplierId: otherSuppliers[0].id,
-        items: [{ productId: productResponse.body.product.id, quantity: 1 }],
+        items: [
+          {
+            productId: productResponse.body.product.id,
+            quantity: 1,
+          },
+        ],
       });
+
     expect(orderResponse.statusCode).toBe(201);
+
     otherSupplierOrderId = orderResponse.body.order.id;
 
     const listResponse = await request(app)
       .get('/suppliers/orders')
       .set('Authorization', `Bearer ${supplierToken}`);
+
     expect(listResponse.statusCode).toBe(200);
-    expect(listResponse.body.orders.map((order) => order.id))
-      .not.toContain(otherSupplierOrderId);
+
+    expect(
+      listResponse.body.orders.map((order) => order.id),
+    ).not.toContain(otherSupplierOrderId);
 
     const detailResponse = await request(app)
       .get(`/suppliers/orders/${otherSupplierOrderId}`)
       .set('Authorization', `Bearer ${supplierToken}`);
+
     expect(detailResponse.statusCode).toBe(404);
   });
 
   test('Supplier should confirm the order', async () => {
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+
     const response = await request(app)
       .patch(`/orders/${orderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
@@ -301,10 +348,13 @@ describe('Order API', () => {
       });
 
     expect(response.statusCode).toBe(200);
+
     expect(response.body.order).toMatchObject({
       id: orderId,
       status: 'CONFIRMED',
     });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
   test('Shop should not be allowed to change order status', async () => {
@@ -334,16 +384,24 @@ describe('Order API', () => {
     const cancelledOrderId = await createShopOrder(3);
     const reservedStock = await getProductStock();
 
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+
     const response = await request(app)
       .patch(`/orders/${cancelledOrderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
       .send({ status: 'CANCELLED' });
 
     expect(response.statusCode).toBe(200);
+
     expect(response.body.order).toMatchObject({
       id: cancelledOrderId,
       status: 'CANCELLED',
     });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      `supplier:${supplierId}:products`,
+    );
+
     expect(await getProductStock()).toBe(startingStock);
 
     const [historyRows] = await pool.execute(
@@ -356,6 +414,7 @@ describe('Order API', () => {
        LIMIT 1`,
       [productId],
     );
+
     expect(historyRows[0]).toMatchObject({
       oldStock: reservedStock,
       newStock: startingStock,
@@ -365,14 +424,17 @@ describe('Order API', () => {
 
   test('Cancelling an already CANCELLED order is rejected without restoring stock again', async () => {
     const cancelledOrderId = await createShopOrder(2);
+
     const cancellation = await request(app)
       .patch(`/orders/${cancelledOrderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
       .send({ status: 'CANCELLED' });
+
     expect(cancellation.statusCode).toBe(200);
 
     const stockAfterCancellation = await getProductStock();
     const historyCount = await getCancellationHistoryCount();
+
     const repeatedCancellation = await request(app)
       .patch(`/orders/${cancelledOrderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
@@ -385,11 +447,14 @@ describe('Order API', () => {
 
   test('Cancelling a CONFIRMED order restores stock', async () => {
     const startingStock = await getProductStock();
+
     const confirmedOrderId = await createShopOrder(4);
+
     const confirmation = await request(app)
       .patch(`/orders/${confirmedOrderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
       .send({ status: 'CONFIRMED' });
+
     expect(confirmation.statusCode).toBe(200);
 
     const response = await request(app)
@@ -403,16 +468,19 @@ describe('Order API', () => {
 
   test('Cancelling a COMPLETED order is rejected without restoring stock', async () => {
     const completedOrderId = await createShopOrder(1);
+
     for (const status of ['CONFIRMED', 'PROCESSING', 'COMPLETED']) {
       const transition = await request(app)
         .patch(`/orders/${completedOrderId}/status`)
         .set('Authorization', `Bearer ${supplierToken}`)
         .send({ status });
+
       expect(transition.statusCode).toBe(200);
     }
 
     const stockBeforeRejectedCancellation = await getProductStock();
     const historyCount = await getCancellationHistoryCount();
+
     const response = await request(app)
       .patch(`/orders/${completedOrderId}/status`)
       .set('Authorization', `Bearer ${supplierToken}`)
@@ -456,11 +524,14 @@ describe('Order API', () => {
         'SELECT status FROM orders WHERE id = ?',
         [pendingOrderId],
       );
+
       expect(orders[0].status).toBe('PENDING');
       expect(sendSpy).not.toHaveBeenCalled();
     } finally {
       sendSpy.mockRestore();
-      await pool.query(`DROP TRIGGER IF EXISTS \`${triggerName}\``);
+      await pool.query(
+        `DROP TRIGGER IF EXISTS \`${triggerName}\``,
+      );
     }
   });
 });

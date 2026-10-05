@@ -1,6 +1,9 @@
 const { randomUUID } = require('node:crypto');
 const { pool } = require('../config/db');
 const {
+  invalidateSupplierProductsCache,
+} = require('./supplier-product-cache.service');
+const {
   publishOrderCreatedEvent,
   publishOrderStatusUpdatedEvent,
   publishStockUpdatedEvent,
@@ -170,6 +173,8 @@ async function createShopOrder(userId, orderRequest) {
 
     await connection.commit();
     transactionStarted = false;
+
+    await invalidateSupplierProductsCache(supplierId);
 
     await publishOrderCreatedEvent({
       eventId: randomUUID(),
@@ -557,6 +562,10 @@ async function updateSupplierOrderStatus(userId, orderId, newStatus) {
 
     await connection.commit();
     transactionStarted = false;
+
+    if (newStatus === 'CANCELLED') {
+      await invalidateSupplierProductsCache(supplierId);
+    }
 
     await publishOrderStatusUpdatedEvent({
       eventId: randomUUID(),

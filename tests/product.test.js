@@ -1,10 +1,16 @@
 const request = require('supertest');
 const app = require('../src/app');
+const { pool } = require('../src/config/db');
+const redisClient = require('../src/config/redis');
 
 describe('Supplier Product API', () => {
   let supplierToken;
 
   const supplierEmail = `jest-supplier-${Date.now()}@example.com`;
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
   test('POST /auth/register should create a supplier', async () => {
     const response = await request(app)
@@ -104,6 +110,11 @@ describe('Supplier Product API', () => {
     );
 
     expect(product).toBeDefined();
+    const [productRows] = await pool.execute(
+      'SELECT supplier_id FROM products WHERE id = ? LIMIT 1',
+      [product.id],
+    );
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
 
     const response = await request(app)
       .patch(`/suppliers/products/${product.id}/stock`)
@@ -125,5 +136,8 @@ describe('Supplier Product API', () => {
       stock: 40,
       version: 2,
     });
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      `supplier:${productRows[0].supplier_id}:products`,
+    );
   });
 });

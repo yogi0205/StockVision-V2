@@ -1,6 +1,8 @@
 const { randomUUID } = require('node:crypto');
 const { pool } = require('../config/db');
-const redisClient = require('../config/redis');
+const {
+  invalidateSupplierProductsCache,
+} = require('./supplier-product-cache.service');
 const {
   publishStockUpdatedEvent,
   publishStockDepletedEvent,
@@ -133,7 +135,7 @@ async function updateSupplierProductStock(userId, productId, newStock) {
     await connection.commit();
     transactionStarted = false;
 
-    await redisClient.del(`supplier:${supplierId}:products`);
+    await invalidateSupplierProductsCache(supplierId);
 
     const event = {
       eventId: randomUUID(),
