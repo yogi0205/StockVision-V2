@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const { pool } = require('../src/config/db');
 const redisClient = require('../src/config/redis');
+const { createSupplierProduct } = require('../src/services/product.service');
 
 describe('Supplier Product API', () => {
   let supplierToken;
@@ -45,6 +46,16 @@ describe('Supplier Product API', () => {
   });
 
   test('POST /suppliers/products should create a product', async () => {
+    const [suppliers] = await pool.execute(
+      `SELECT suppliers.id
+       FROM suppliers
+       INNER JOIN users ON users.id = suppliers.user_id
+       WHERE users.email = ?
+       LIMIT 1`,
+      [supplierEmail],
+    );
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+
     const response = await request(app)
       .post('/suppliers/products')
       .set('Authorization', `Bearer ${supplierToken}`)
@@ -75,6 +86,35 @@ describe('Supplier Product API', () => {
     });
 
     expect(response.body.product).toHaveProperty('id');
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      `supplier:${suppliers[0].id}:products`,
+    );
+  });
+
+  test('failed product creation does not invalidate the supplier product cache', async () => {
+    const invalidateSpy = jest.spyOn(redisClient, 'del').mockResolvedValue(1);
+    const connection = {
+      beginTransaction: jest.fn().mockResolvedValue(undefined),
+      execute: jest.fn()
+        .mockResolvedValueOnce([[{ id: 123 }], []])
+        .mockResolvedValueOnce([{ insertId: 456 }, []])
+        .mockRejectedValueOnce(new Error('Stock history insert failed')),
+      commit: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn(),
+    };
+    jest.spyOn(pool, 'getConnection').mockResolvedValue(connection);
+
+    await expect(createSupplierProduct(789, {
+      name: 'Failed Product',
+      unit: 'piece',
+      price: 10,
+      stock: 5,
+    })).rejects.toThrow('Stock history insert failed');
+
+    expect(connection.rollback).toHaveBeenCalledTimes(1);
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
   test('GET /suppliers/products should return the created product', async () => {

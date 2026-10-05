@@ -56,6 +56,8 @@ async function createSupplierProduct(userId, product) {
     await connection.commit();
     transactionStarted = false;
 
+    await invalidateSupplierProductsCache(supplierId);
+
     return {
       id: result.insertId,
       name: product.name,
